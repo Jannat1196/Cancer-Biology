@@ -8,20 +8,31 @@ library(limma)
 library(edgeR)
 library(org.Hs.eg.db)
 library(AnnotationDbi)
-gset <- getGEO("GSE54129", GSEMatrix = TRUE, AnnotGPL = TRUE)
+
+gset <- getGEO("GSE44861", GSEMatrix = TRUE, AnnotGPL = TRUE)
 gset <- gset[[1]]
+
 expr <- exprs(gset)        # expression matrix
 pdata <- pData(gset)       # sample metadata
+
 head(expr)
 dim(expr)
 head(pdata)
 colnames(pdata)
 
 group <- factor(ifelse(
-  grepl("cancer", pdata$characteristics_ch1, ignore.case = TRUE),
-  "cancer", "normal"
+  pdata$`tissue:ch1` == "Tumor",
+  "Tumor",
+  "adjacent nontumor"
 ))
+
+
+group <- factor(group,
+                levels = c("adjacent nontumor", "Tumor"),
+                labels = c("normal", "tumor"))
+
 table(group)
+
 design <- model.matrix(~ group)
 colnames(design)
 
@@ -29,21 +40,21 @@ fit <- lmFit(expr, design)
 fit <- eBayes(fit)
 deg <- topTable(
   fit,
-  coef = "groupnormal",
+  coef = "grouptumor",
   number = Inf,
   adjust.method = "BH"
 )
 
 head(deg)
-deg$logFC_Cancer_vs_Normal <- -deg$logFC
+deg$logFC_Tumor_vs_Normal <- -deg$logFC
 
 deg_sig <- subset(
   deg,
-  adj.P.Val < 0.05 & abs(logFC_Cancer_vs_Normal) > 1
+  adj.P.Val < 0.05 & abs(logFC_Tumor_vs_Normal) > 1
 )
 
-upregulated <- subset(deg_sig, logFC_Cancer_vs_Normal > 1)
-downregulated <- subset(deg_sig, logFC_Cancer_vs_Normal < -1)
+upregulated <- subset(deg_sig, logFC_Tumor_vs_Normal > 1)
+downregulated <- subset(deg_sig, logFC_Tumor_vs_Normal < -1)
 
 cat("Total DEGs:", nrow(deg_sig), "\n")
 cat("Upregulated in cancer:", nrow(upregulated), "\n")
@@ -80,32 +91,36 @@ deg_sig$ENTREZID <- mapIds(
 colnames(deg_sig)
 
 # Keep only the desired columns
-deg_final <- deg_sig[, c("GeneSymbol","logFC", "AveExpr"  ,"t","P.Value", "adj.P.Val","logFC_Cancer_vs_Normal",  "B" , "GeneName", "ENTREZID")]
+deg_final <- deg_sig[, c("GeneSymbol","logFC", "AveExpr"  ,"t","P.Value", "adj.P.Val","logFC_Tumor_vs_Normal",  "B" , "GeneName", "ENTREZID")]
 sum(is.na(deg_final$GeneSymbol))
+deg_final[is.na(deg_final$GeneSymbol), ]
+
 deg_final11 <- deg_final[!is.na(deg_final$GeneSymbol), ]
 sum(is.na(deg_final11$GeneSymbol))
 
-upregulated <- subset(deg_final11, logFC_Cancer_vs_Normal > 1)
-downregulated <- subset(deg_final11, logFC_Cancer_vs_Normal < -1)
+upregulated <- subset(deg_final11, logFC_Tumor_vs_Normal > 1)
+downregulated <- subset(deg_final11, logFC_Tumor_vs_Normal < -1)
 
-
+nrow(deg_final11)
+nrow( upregulated)
+nrow(downregulated)
 # Check
 head(deg_final11)
 
 # Export to CSV
 write.csv(
   deg_final11,
-  file = "F:/DATA_RNASeq/Cancer-Biology/data/GSE54129/DEG_Cancer_vs_Normal_29.csv",
+  file = "F:/DATA_RNASeq/Cancer-Biology/data/GSE44861/DEG_Cancer_vs_Normal_61.csv",
   row.names = TRUE
 )
 write.csv(
   upregulated, 
-  file = "F:/DATA_RNASeq/Cancer-Biology/data/GSE54129/Up_DEG_Cancer_vs_Normal_29.csv", 
+  file = "F:/DATA_RNASeq/Cancer-Biology/data/GSE44861/Up_DEG_Cancer_vs_Normal_61.csv", 
   row.names = TRUE
 )
 write.csv(
   downregulated, 
-  file= "F:/DATA_RNASeq/Cancer-Biology/data/GSE54129/Down_DEG_Cancer_vs_Normal_29.csv", 
+  file= "F:/DATA_RNASeq/Cancer-Biology/data/GSE44861/Down_DEG_Cancer_vs_Normal_61.csv", 
   row.names = TRUE
 )
 
@@ -115,8 +130,9 @@ top100_up <- deg_final11[
   deg_final11$logFC > 1,
 ][order(deg_final11$adj.P.Val[deg_final11$logFC > 1]), ][1:100, ]
 
-write.csv(top100_deg,  "F:/DATA_RNASeq/Cancer-Biology/data/GSE54129/Top100_DEGs_29.csv")
-write.csv(top100_up,   "F:/DATA_RNASeq/Cancer-Biology/data/GSE54129/Top100_Upregulated_29.csv")
+write.csv(top100_deg,  "F:/DATA_RNASeq/Cancer-Biology/data/GSE44861/Top100_DEGs_61.csv")
+write.csv(top100_up,   "F:/DATA_RNASeq/Cancer-Biology/data/GSE44861/Top100_Upregulated_61.csv")
 
 
+#file.info("script/GSE44861.R")$size
 
